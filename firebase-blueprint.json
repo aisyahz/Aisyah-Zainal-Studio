@@ -1,0 +1,22 @@
+{
+  "entities": {
+    "Counter": {
+      "title": "Counter",
+      "description": "A simple counter for tracking visitors.",
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "number",
+          "description": "The current number of visitors."
+        }
+      },
+      "required": ["count"]
+    }
+  },
+  "firestore": {
+    "counters/visitors": {
+      "schema": "Counter",
+      "description": "The global visitor counter document."
+    }
+  }
+}

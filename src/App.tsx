@@ -14,8 +14,85 @@ import {
   Linkedin, 
   Mail,
   Phone,
-  ExternalLink
+  ExternalLink,
+  Users
 } from 'lucide-react';
+import { 
+  doc, 
+  increment, 
+  onSnapshot, 
+  runTransaction 
+} from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
+import { db, auth } from './firebase';
+
+function VisitorCounter() {
+  const [count, setCount] = useState<number | null>(null);
+  const [hasIncremented, setHasIncremented] = useState(false);
+
+  useEffect(() => {
+    // 1. Listen for real-time updates
+    const unsubscribe = onSnapshot(doc(db, 'counters', 'visitors'), (snapshot) => {
+      if (snapshot.exists()) {
+        setCount(snapshot.data().count);
+      } else {
+        setCount(0);
+      }
+    }, (error) => {
+      console.error("Error fetching visitor count:", error);
+    });
+
+    // 2. Sign in anonymously and increment count once per session
+    const incrementCounter = async () => {
+      if (hasIncremented) return;
+      
+      try {
+        // Wait for auth to be ready if needed, or just sign in
+        if (!auth.currentUser) {
+          await signInAnonymously(auth);
+        }
+
+        const counterRef = doc(db, 'counters', 'visitors');
+        
+        await runTransaction(db, async (transaction) => {
+          const counterDoc = await transaction.get(counterRef);
+          if (!counterDoc.exists()) {
+            transaction.set(counterRef, { count: 1 });
+          } else {
+            transaction.update(counterRef, { count: increment(1) });
+          }
+        });
+        
+        setHasIncremented(true);
+        sessionStorage.setItem('visited', 'true');
+      } catch (error) {
+        // Silently fail if increment fails, we still want to show the count
+        console.warn("Visitor increment skipped or failed:", error);
+      }
+    };
+
+    if (!sessionStorage.getItem('visited')) {
+      incrementCounter();
+    } else {
+      setHasIncremented(true);
+    }
+
+    return () => unsubscribe();
+  }, [hasIncremented]);
+
+  if (count === null) return null;
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex items-center gap-2 text-[10px] md:text-xs text-brand-dark/40 font-medium bg-brand-primary/50 px-3 py-1.5 rounded-full border border-brand-accent/5"
+    >
+      <Users size={12} className="text-brand-accent" />
+      <span>{count.toLocaleString()} studio visitors</span>
+    </motion.div>
+  );
+}
 
 export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -669,9 +746,12 @@ ${formData.message}`;
           <div className="text-xl font-serif font-semibold">
             Aisyah Zainal <span className="text-brand-accent italic">Studio</span>
           </div>
-          <div className="flex gap-8 text-sm text-brand-dark/60">
-            <a href="#" className="hover:text-brand-dark transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-brand-dark transition-colors">Terms of Service</a>
+          <div className="flex flex-col items-center md:items-end gap-4">
+            <div className="flex gap-8 text-sm text-brand-dark/60">
+              <a href="#" className="hover:text-brand-dark transition-colors">Privacy Policy</a>
+              <a href="#" className="hover:text-brand-dark transition-colors">Terms of Service</a>
+            </div>
+            <VisitorCounter />
           </div>
           <p className="text-sm text-brand-dark/40">
             © 2026 Aisyah Zainal Studio. All rights reserved.

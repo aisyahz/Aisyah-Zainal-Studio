@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Domain Validator for Counter
+    function isValidCounter(data) {
+      return data.keys().hasOnly(['count']) &&
+             data.count is number &&
+             data.count >= 0;
+    }
+
+    match /counters/visitors {
+      // Allow anyone to read the visitor count
+      allow read: if true;
+      
+      // Allow authenticated users to create or update the counter
+      // Update must be an increment of exactly 1
+      allow create: if isAuthenticated() && isValidCounter(request.resource.data);
+      allow update: if isAuthenticated() && 
+                      isValidCounter(request.resource.data) &&
+                      request.resource.data.count == resource.data.count + 1;
+    }
+    
+    // Default deny for everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
